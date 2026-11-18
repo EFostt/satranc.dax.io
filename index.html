@@ -1,0 +1,508 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EFost Chess</title>
+
+<style>
+* { box-sizing:border-box; }
+body {
+  margin:0;
+  background:#101318;
+  color:#eee;
+  font-family:Arial,sans-serif;
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:20px;
+}
+.app {
+  width:100%;
+  max-width:850px;
+  background:#191e27;
+  border:1px solid #303846;
+  border-radius:18px;
+  padding:24px;
+  box-shadow:0 20px 60px #0008;
+}
+header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:20px;
+}
+.logo { font-size:25px;font-weight:bold;letter-spacing:2px; }
+.logo span { color:#c59b5c; }
+.tag { color:#9da7b5;font-size:12px; }
+.layout {
+  display:grid;
+  grid-template-columns:minmax(0,520px) minmax(190px,1fr);
+  gap:22px;
+}
+.board {
+  display:grid;
+  grid-template-columns:repeat(8,1fr);
+  width:100%;
+  aspect-ratio:1;
+  overflow:hidden;
+  border-radius:6px;
+  border:3px solid #292e38;
+}
+.square {
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  aspect-ratio:1;
+  cursor:pointer;
+  user-select:none;
+  font-family:"Segoe UI Symbol","DejaVu Sans",serif;
+  font-size:clamp(25px,5.5vw,52px);
+  line-height:1;
+}
+.light { background:#e8d5b5; }
+.dark { background:#9b7655; }
+.square.selected { background:#e8c04d!important; }
+.square.last { box-shadow:inset 0 0 0 4px #e7ca50; }
+.square.hint::after {
+  content:"";
+  width:25%;
+  height:25%;
+  border-radius:50%;
+  background:#263e2b99;
+  position:absolute;
+}
+.square.capture::after {
+  content:"";
+  position:absolute;
+  inset:5%;
+  border:5px solid #263e2b99;
+  border-radius:50%;
+}
+.piece {
+  position:relative;
+  z-index:2;
+  filter:drop-shadow(1px 2px 1px #0005);
+}
+.white-piece {
+  color:#fffdf1;
+  -webkit-text-stroke:1px #333;
+  text-shadow:1px 2px 2px #222;
+}
+.black-piece {
+  color:#20242a;
+  -webkit-text-stroke:1px #f2e7d2;
+  text-shadow:1px 2px 2px #0008;
+}
+.coords {
+  position:absolute;
+  bottom:2px;
+  left:3px;
+  font-size:10px;
+  color:#3339;
+  z-index:3;
+}
+.panel { display:flex;flex-direction:column;gap:13px; }
+.status {
+  background:#252c37;
+  padding:15px;
+  border-radius:10px;
+}
+.status small { color:#9ba6b5; }
+.status h3 { margin:8px 0 0;font-size:17px; }
+label { font-size:12px;color:#aeb7c4;display:block;margin-bottom:7px; }
+select,button {
+  width:100%;
+  border:1px solid #394453;
+  border-radius:8px;
+  background:#252c37;
+  color:white;
+  padding:11px;
+  font-size:14px;
+  cursor:pointer;
+}
+button:hover { background:#343e4c; }
+button.primary {
+  background:#b68b52;
+  color:#151515;
+  border:0;
+  font-weight:bold;
+}
+button.primary:hover { background:#d2a76b; }
+.moves {
+  background:#11161e;
+  border-radius:9px;
+  padding:12px;
+  min-height:120px;
+  max-height:210px;
+  overflow-y:auto;
+  font-size:13px;
+}
+.move-row {
+  display:grid;
+  grid-template-columns:30px 1fr 1fr;
+  padding:6px 2px;
+  border-bottom:1px solid #242b35;
+}
+.move-row span:first-child { color:#8b96a5; }
+.move-row span { color:#e3e6eb; }
+.info { color:#8f9aaa;font-size:12px;line-height:1.5; }
+.actions { display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+@media(max-width:650px) {
+  body { padding:10px;align-items:flex-start; }
+  .app { padding:13px; }
+  .layout { grid-template-columns:1fr; }
+  .panel { display:grid;grid-template-columns:1fr 1fr; }
+  .status,.history,.info { grid-column:1/-1; }
+  .board { max-width:520px;margin:auto; }
+  header { margin-bottom:13px; }
+}
+</style>
+</head>
+
+<body>
+<div class="app">
+  <header>
+    <div class="logo">EFOST <span>CHESS</span></div>
+    <div class="tag">PLAYER VS COMPUTER</div>
+  </header>
+
+  <div class="layout">
+    <div>
+      <div class="status" style="margin-bottom:10px">
+        <small>OYUN DURUMU</small>
+        <h3 id="status">Oyun hazırlanıyor...</h3>
+      </div>
+      <div class="board" id="board"></div>
+    </div>
+
+    <div class="panel">
+      <div>
+        <label>TAŞ RENGİN</label>
+        <select id="color">
+          <option value="w">Beyaz</option>
+          <option value="b">Siyah</option>
+        </select>
+      </div>
+
+      <div>
+        <label>BOT ZORLUĞU</label>
+        <select id="difficulty">
+          <option value="1">Kolay</option>
+          <option value="2" selected>Orta</option>
+          <option value="3">Zor</option>
+        </select>
+      </div>
+
+      <button class="primary" id="newGame">YENİ OYUN</button>
+
+      <div class="actions">
+        <button id="undo">↶ Geri al</button>
+        <button id="flip">⇅ Tahtayı çevir</button>
+      </div>
+
+      <div class="history">
+        <label>HAMLE GEÇMİŞİ</label>
+        <div class="moves" id="moves">Henüz hamle yapılmadı.</div>
+      </div>
+
+      <div class="info">
+        Bir taş seç, ardından gitmesini istediğin kareye tıkla.
+        Yeşil noktalar geçerli hamleleri gösterir.
+        Bot, seçtiğin zorluk seviyesine göre hamle yapar.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { Chess } from
+'https://cdn.jsdelivr.net/npm/chess.js@1.4.0/dist/esm/chess.js';
+
+const $ = id => document.getElementById(id);
+
+const symbols = {
+  wk:"♔",wq:"♕",wr:"♖",wb:"♗",wn:"♘",wp:"♙",
+  bk:"♚",bq:"♛",br:"♜",bb:"♝",bn:"♞",bp:"♟"
+};
+
+let game = new Chess();
+let human = "w";
+let selected = null;
+let legalMoves = [];
+let lastMove = null;
+let thinking = false;
+let flipped = false;
+let botTimer = null;
+
+const values = {p:100,n:320,b:330,r:500,q:900,k:20000};
+
+function evaluate(g) {
+  if(g.isCheckmate()) return g.turn()==="w" ? -100000 : 100000;
+  if(g.isDraw()) return 0;
+
+  let score = 0;
+  const board = g.board();
+
+  for(let r=0;r<8;r++) {
+    for(let c=0;c<8;c++) {
+      const p=board[r][c];
+      if(!p) continue;
+
+      const sign=p.color==="w"?1:-1;
+      const type=p.type;
+      let positional=0;
+
+      const center=3.5-(Math.abs(3.5-r)+Math.abs(3.5-c))/2;
+      if(type==="n"||type==="b") positional=center*8;
+      if(type==="p") positional=(p.color==="w"?(6-r):(r-1))*5;
+
+      score += sign*(values[type]+positional);
+    }
+  }
+
+  return score;
+}
+
+function search(g, depth, alpha, beta) {
+  if(depth===0 || g.isGameOver()) return evaluate(g);
+
+  const moves=g.moves({verbose:true});
+  moves.sort((a,b)=>{
+    const av=(b.captured?values[b.captured]:0)-(a.captured?values[a.captured]:0);
+    return av;
+  });
+
+  const maximizing=g.turn()==="w";
+
+  if(maximizing) {
+    let best=-Infinity;
+    for(const m of moves) {
+      g.move(m);
+      best=Math.max(best,search(g,depth-1,alpha,beta));
+      g.undo();
+      alpha=Math.max(alpha,best);
+      if(beta<=alpha) break;
+    }
+    return best;
+  } else {
+    let best=Infinity;
+    for(const m of moves) {
+      g.move(m);
+      best=Math.min(best,search(g,depth-1,alpha,beta));
+      g.undo();
+      beta=Math.min(beta,best);
+      if(beta<=alpha) break;
+    }
+    return best;
+  }
+}
+
+function botMove() {
+  if(game.isGameOver() || game.turn()===human) return;
+
+  thinking=true;
+  render();
+
+  botTimer=setTimeout(()=>{
+    const depth=Number($("difficulty").value);
+    const moves=game.moves({verbose:true});
+    let bestScore=game.turn()==="w"?-Infinity:Infinity;
+    let bestMoves=[];
+
+    for(const m of moves) {
+      game.move(m);
+      const score=search(game,depth-1,-Infinity,Infinity);
+      game.undo();
+
+      if(game.turn()==="w") {
+        if(score>bestScore){bestScore=score;bestMoves=[m];}
+        else if(score===bestScore)bestMoves.push(m);
+      } else {
+        if(score<bestScore){bestScore=score;bestMoves=[m];}
+        else if(score===bestScore)bestMoves.push(m);
+      }
+    }
+
+    const chosen=bestMoves[Math.floor(Math.random()*bestMoves.length)];
+    lastMove={from:chosen.from,to:chosen.to};
+    game.move({
+      from:chosen.from,
+      to:chosen.to,
+      promotion:"q"
+    });
+
+    thinking=false;
+    selected=null;
+    render();
+  },300);
+}
+
+function updateStatus() {
+  if(game.isCheckmate()) {
+    $("status").textContent =
+      game.turn()===human ? "ŞAH MAT! Bot kazandı." : "KAZANDIN! Şah mat!";
+  } else if(game.isStalemate()) {
+    $("status").textContent="Pat! Berabere.";
+  } else if(game.isDraw()) {
+    $("status").textContent="Oyun berabere.";
+  } else if(thinking) {
+    $("status").textContent="Bot düşünüyor...";
+  } else {
+    $("status").textContent=
+      (game.turn()===human?"Senin sıran":"Botun sırası")+
+      (game.isCheck()?" — ŞAH!":"");
+  }
+}
+
+function renderMoves() {
+  const history=game.history();
+  if(!history.length) {
+    $("moves").textContent="Henüz hamle yapılmadı.";
+    return;
+  }
+
+  let html="";
+  for(let i=0;i<history.length;i+=2) {
+    html+=`<div class="move-row">
+      <span>${Math.floor(i/2)+1}.</span>
+      <span>${history[i]||""}</span>
+      <span>${history[i+1]||""}</span>
+    </div>`;
+  }
+  $("moves").innerHTML=html;
+  $("moves").scrollTop=$("moves").scrollHeight;
+}
+
+function render() {
+  const board=$("board");
+  board.innerHTML="";
+
+  const rows=flipped?[7,6,5,4,3,2,1,0]:[0,1,2,3,4,5,6,7];
+  const cols=flipped?[7,6,5,4,3,2,1,0]:[0,1,2,3,4,5,6,7];
+
+  for(const r of rows) {
+    for(const c of cols) {
+      const squareName="abcdefgh"[c]+(8-r);
+      const piece=game.get(squareName);
+      const div=document.createElement("div");
+
+      div.className="square "+((r+c)%2===0?"light":"dark");
+
+      if(selected===squareName) div.classList.add("selected");
+      if(lastMove&&(lastMove.from===squareName||lastMove.to===squareName))
+        div.classList.add("last");
+
+      const possible=legalMoves.find(m=>m.to===squareName);
+      if(possible) div.classList.add(possible.captured?"capture":"hint");
+
+      if(piece) {
+        const span=document.createElement("span");
+        span.className="piece "+(piece.color==="w"?"white-piece":"black-piece");
+        span.textContent=symbols[piece.color+piece.type];
+        div.appendChild(span);
+      }
+
+      if(c===0) {
+        const coord=document.createElement("span");
+        coord.className="coords";
+        coord.textContent=8-r;
+        div.appendChild(coord);
+      }
+
+      div.addEventListener("click",()=>squareClick(squareName));
+      board.appendChild(div);
+    }
+  }
+
+  updateStatus();
+  renderMoves();
+}
+
+function squareClick(square) {
+  if(thinking||game.isGameOver()||game.turn()!==human) return;
+
+  const piece=game.get(square);
+
+  if(selected) {
+    const move=legalMoves.find(m=>m.to===square);
+
+    if(move) {
+      const from=selected;
+      const moving=game.get(from);
+      const promotion=moving.type==="p"&&(square[1]==="8"||square[1]==="1");
+
+      let choice="q";
+      if(promotion) {
+        const answer=prompt("Terfi: q=Vezir, r=Kale, b=Fil, n=At","q");
+        choice=["q","r","b","n"].includes((answer||"q").toLowerCase())
+          ?answer.toLowerCase():"q";
+      }
+
+      game.move({from,to:square,promotion:choice});
+      lastMove={from,to:square};
+      selected=null;
+      legalMoves=[];
+      render();
+
+      if(!game.isGameOver()) botMove();
+      return;
+    }
+  }
+
+  if(piece&&piece.color===human) {
+    selected=square;
+    legalMoves=game.moves({square,verbose:true});
+  } else {
+    selected=null;
+    legalMoves=[];
+  }
+
+  render();
+}
+
+function newGame() {
+  clearTimeout(botTimer);
+  game=new Chess();
+  human=$("color").value;
+  selected=null;
+  legalMoves=[];
+  lastMove=null;
+  thinking=false;
+  flipped=human==="b";
+  render();
+
+  if(human==="b") botMove();
+}
+
+$("newGame").addEventListener("click",newGame);
+
+$("undo").addEventListener("click",()=>{
+  clearTimeout(botTimer);
+  thinking=false;
+
+  if(game.history().length) {
+    game.undo();
+    if(game.turn()!==human && game.history().length) game.undo();
+  }
+
+  selected=null;
+  legalMoves=[];
+  lastMove=null;
+  render();
+});
+
+$("flip").addEventListener("click",()=>{
+  flipped=!flipped;
+  render();
+});
+
+$("color").addEventListener("change",newGame);
+
+newGame();
+</script>
+</body>
+</html>
